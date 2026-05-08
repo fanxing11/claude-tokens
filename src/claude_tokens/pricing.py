@@ -2,8 +2,9 @@
 
 Defaults are Anthropic public list prices (USD per 1M tokens) at the time of
 writing. Users can override or extend via a TOML config file at
-``~/.config/ccstats/pricing.toml`` (or ``$XDG_CONFIG_HOME/ccstats/pricing.toml``)
-or by passing ``--pricing-file`` on the command line.
+``~/.config/claude-tokens/pricing.toml`` (or
+``$XDG_CONFIG_HOME/claude-tokens/pricing.toml``) or by passing
+``--pricing-file`` on the command line.
 
 Config file format::
 
@@ -35,7 +36,7 @@ from typing import Iterable
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - we require 3.11+
-    raise RuntimeError("ccstats requires Python 3.11+")
+    raise RuntimeError("claude-tokens requires Python 3.11+")
 
 
 @dataclass(frozen=True)
@@ -65,9 +66,9 @@ DEFAULT_RULES: tuple[PriceRule, ...] = (
 def default_config_path() -> Path:
     """Per-OS user config path.
 
-    - Linux/BSD: $XDG_CONFIG_HOME/ccstats/pricing.toml or ~/.config/ccstats/pricing.toml
-    - macOS: ~/Library/Application Support/ccstats/pricing.toml
-    - Windows: %APPDATA%/ccstats/pricing.toml
+    - Linux/BSD: $XDG_CONFIG_HOME/claude-tokens/pricing.toml or ~/.config/claude-tokens/pricing.toml
+    - macOS: ~/Library/Application Support/claude-tokens/pricing.toml
+    - Windows: %APPDATA%/claude-tokens/pricing.toml
     """
     if sys.platform == "win32":
         base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
@@ -75,7 +76,7 @@ def default_config_path() -> Path:
         base = str(Path.home() / "Library" / "Application Support")
     else:
         base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "ccstats" / "pricing.toml"
+    return Path(base) / "claude-tokens" / "pricing.toml"
 
 
 def load_rules(path: Path | None = None) -> tuple[PriceRule, ...]:

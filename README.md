@@ -1,14 +1,14 @@
-# ccstats
+# claude-tokens
 
 Token usage and cost analyzer for [Claude Code](https://docs.anthropic.com/claude-code) session logs.
 
-`ccstats` reads the JSONL session files Claude Code writes under `~/.claude/projects/`
+`claude-tokens` reads the JSONL session files Claude Code writes under `~/.claude/projects/`
 and produces a per-day / per-model / per-project breakdown of input, output,
 cache-write, and cache-read tokens — with an optional USD cost estimate based on
 [Anthropic's public list pricing](https://www.anthropic.com/pricing).
 
 ```
-$ ccstats --days 7
+$ claude-tokens --days 7
 # Claude Code usage  2026-04-23 ~ 2026-04-30  (Asia/Shanghai)  group by: day
 day         msgs   input  output  cache_w  cache_r   total      ≈cost
 ---------------------------------------------------------------------
@@ -18,46 +18,46 @@ day         msgs   input  output  cache_w  cache_r   total      ≈cost
 TOTAL       6317    2.5M    4.2M    99.8M    1.45B   1.56B  $4367.07
 ```
 
-Works on macOS and Linux (any platform Claude Code itself runs on). No third-party
-dependencies — pure Python standard library, requires Python 3.11+.
+Works on macOS, Linux, and Windows (any platform Claude Code itself runs on). No
+third-party dependencies — pure Python standard library, requires Python 3.11+.
 
 ## Install
 
 With [`uv`](https://github.com/astral-sh/uv) (recommended):
 
 ```sh
-uv tool install ccstats
+uv tool install claude-tokens
 ```
 
 With [`pipx`](https://pipx.pypa.io/):
 
 ```sh
-pipx install ccstats
+pipx install claude-tokens
 ```
 
 With plain pip:
 
 ```sh
-pip install --user ccstats
+pip install --user claude-tokens
 ```
 
 ## Usage
 
 ```sh
-ccstats                              # last 7 days, grouped by day
-ccstats --days 30                    # last 30 days
-ccstats --from 2026-04-01            # since a specific day
-ccstats --from 2026-04-01 --to 2026-04-15
+claude-tokens                              # last 7 days, grouped by day
+claude-tokens --days 30                    # last 30 days
+claude-tokens --from 2026-04-01            # since a specific day
+claude-tokens --from 2026-04-01 --to 2026-04-15
 
-ccstats --group model                # break down by model
-ccstats --group project              # by working directory
-ccstats --group day,model            # nested: day then model
+claude-tokens --group model                # break down by model
+claude-tokens --group project              # by working directory
+claude-tokens --group day,model            # nested: day then model
 
-ccstats --json                       # JSON output (pipe to jq, etc.)
-ccstats --watch 5                    # live refresh every 5 seconds
+claude-tokens --json                       # JSON output (pipe to jq, etc.)
+claude-tokens --watch 5                    # live refresh every 5 seconds
 
-ccstats --tz UTC                     # change timezone (default Asia/Shanghai)
-ccstats --tz +0                      # numeric offsets work too
+claude-tokens --tz UTC                     # change timezone (default Asia/Shanghai)
+claude-tokens --tz +0                      # numeric offsets work too
 ```
 
 ## How it works
@@ -81,7 +81,7 @@ contains the **server-reported** token usage:
 }
 ```
 
-`ccstats`:
+`claude-tokens`:
 
 1. Walks every `*.jsonl` under the log directory.
 2. Deduplicates by Anthropic's globally unique `message.id` — the same response
@@ -100,7 +100,13 @@ behavior — not a client-side guess.
 Default pricing covers Anthropic's public list price for the Opus, Sonnet, and
 Haiku families. To override these rates or add prices for other models (e.g.
 when routing through Vertex with a negotiated rate, or using third-party models
-like Qwen / GLM / Kimi), drop a TOML file at `~/.config/ccstats/pricing.toml`:
+like Qwen / GLM / Kimi), drop a TOML file at the OS-appropriate config path:
+
+| OS      | Default config path                                            |
+|---------|----------------------------------------------------------------|
+| Linux   | `~/.config/claude-tokens/pricing.toml`                         |
+| macOS   | `~/Library/Application Support/claude-tokens/pricing.toml`     |
+| Windows | `%APPDATA%\claude-tokens\pricing.toml`                         |
 
 ```toml
 # Match by case-insensitive substring against the model id. First match wins,
@@ -121,15 +127,15 @@ cache_create = 1.0
 cache_read = 0.1
 ```
 
-Use `--pricing-file PATH` or `CCSTATS_PRICING=PATH` to point at a different file.
+Use `--pricing-file PATH` or `CLAUDE_TOKENS_PRICING=PATH` to point at a different file.
 
 ## Environment variables
 
-| Variable           | Purpose                              | Default                |
-|--------------------|--------------------------------------|------------------------|
-| `CCSTATS_LOG_DIR`  | Claude Code projects log directory   | `~/.claude/projects`   |
-| `CCSTATS_TZ`       | Timezone for day buckets             | `Asia/Shanghai`        |
-| `CCSTATS_PRICING`  | Pricing override TOML path           | `~/.config/ccstats/pricing.toml` |
+| Variable                  | Purpose                              | Default                                  |
+|---------------------------|--------------------------------------|------------------------------------------|
+| `CLAUDE_TOKENS_LOG_DIR`   | Claude Code projects log directory   | `~/.claude/projects`                     |
+| `CLAUDE_TOKENS_TZ`        | Timezone for day buckets             | `Asia/Shanghai`                          |
+| `CLAUDE_TOKENS_PRICING`   | Pricing override TOML path           | OS-specific (see above)                  |
 
 ## Caveats
 

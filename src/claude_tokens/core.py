@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from ccstats.pricing import Price, PriceRule, cost_usd, price_for
+from claude_tokens.pricing import Price, PriceRule, cost_usd, price_for
 
 
 DEFAULT_LOG_DIR = Path.home() / ".claude" / "projects"

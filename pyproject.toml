@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ccstats"
+name = "claude-tokens"
 version = "0.1.0"
 description = "Token usage and cost analyzer for Claude Code session logs"
 readme = "README.md"
@@ -33,15 +33,15 @@ dependencies = []
 dev = ["pytest>=7"]
 
 [project.scripts]
-ccstats = "ccstats.cli:main"
+claude-tokens = "claude_tokens.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/fanxing11/ccstats"
-Repository = "https://github.com/fanxing11/ccstats"
-Issues = "https://github.com/fanxing11/ccstats/issues"
+Homepage = "https://github.com/fanxing11/claude-tokens"
+Repository = "https://github.com/fanxing11/claude-tokens"
+Issues = "https://github.com/fanxing11/claude-tokens/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ccstats"]
+packages = ["src/claude_tokens"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
