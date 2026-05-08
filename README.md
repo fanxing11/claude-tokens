@@ -148,6 +148,27 @@ Use `--pricing-file PATH` or `CLAUDE_TOKENS_PRICING=PATH` to point at a differen
 - Models without a configured price are still counted in the token columns but
   contribute `-` (or `*` in totals) in the cost column.
 
+## Comparison with other tools
+
+If you also have [`ccusage`](https://github.com/ryoppippi/ccusage) installed,
+its numbers will differ from `claude-tokens`'s on the same logs. Two reasons,
+both intentional:
+
+1. **Deduplication.** Claude Code writes the same assistant message into
+   multiple JSONL files when sessions are resumed, sub-agents capture parent
+   context, or `/rewind` is used. `claude-tokens` deduplicates by Anthropic's
+   globally unique `message.id` — each API call is counted exactly once,
+   matching how Anthropic actually bills. `ccusage` counts every occurrence,
+   so its token totals are typically 30-70% higher than the real billed amount.
+2. **Pricing source.** `claude-tokens` ships Anthropic's published list price
+   for the Opus / Sonnet / Haiku families (and lets you override via
+   `pricing.toml`). `ccusage` fetches the LiteLLM price table at runtime,
+   which often has different (sometimes much lower) rates for newer model IDs.
+
+If you want to reconcile with your cloud provider's billing report, prefer
+`claude-tokens`'s dedup'd numbers and substitute your contract pricing in
+`pricing.toml`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

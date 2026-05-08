@@ -58,31 +58,45 @@ class Bucket:
             self.cost += cost_usd(price, row.input, row.output, row.cache_create, row.cache_read)
 
 
-def project_name_from_log_path(path: str) -> str:
-    """Decode ~/.claude/projects/-home-neolix-code-foo -> /home/neolix/code/foo.
+def project_name_from_log_path(path: str, log_dir: Path) -> str:
+    """Decode the encoded project directory name from a log file path.
+
+    Both top-level session files (``<log_dir>/<project>/<session>.jsonl``) and
+    subagent files (``<log_dir>/<project>/<session>/subagents/agent-*.jsonl``)
+    yield the same project name — we always take the first path segment under
+    ``log_dir``.
 
     Claude Code encodes the project cwd by replacing ``/`` with ``-``. This
     decoder is best-effort: a path segment that legitimately contained ``-``
     can't be perfectly reversed, but the result is still a stable, human-readable
     identifier good enough for grouping.
     """
-    base = os.path.basename(os.path.dirname(path))
-    if base.startswith("-"):
+    try:
+        rel = Path(path).relative_to(log_dir)
+    except ValueError:
+        # Path isn't under log_dir; fall back to immediate parent dir name.
+        rel = Path(os.path.basename(os.path.dirname(path)))
+    encoded = rel.parts[0] if rel.parts else ""
+    if encoded.startswith("-"):
         # Leading dash represents the leading slash of an absolute path.
-        return "/" + base[1:].replace("-", "/")
-    return base
+        return "/" + encoded[1:].replace("-", "/")
+    return encoded
 
 
 def iter_log_files(log_dir: Path, file_cutoff: datetime) -> Iterator[str]:
-    """Yield jsonl files under ``log_dir`` with mtime >= cutoff."""
-    pattern = str(log_dir / "*" / "*.jsonl")
-    for f in glob.glob(pattern):
+    """Yield jsonl files anywhere under ``log_dir`` with mtime >= cutoff.
+
+    Recurses to pick up subagent logs at
+    ``<log_dir>/<project>/<session-id>/subagents/agent-*.jsonl`` in addition to
+    top-level ``<log_dir>/<project>/<session-id>.jsonl`` files.
+    """
+    for path in log_dir.rglob("*.jsonl"):
         try:
-            mtime = datetime.fromtimestamp(os.path.getmtime(f), timezone.utc)
+            mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
         except OSError:
             continue
         if mtime >= file_cutoff:
-            yield f
+            yield str(path)
 
 
 def collect(
@@ -97,7 +111,7 @@ def collect(
     rows: list[UsageRow] = []
 
     for f in iter_log_files(log_dir, file_cutoff):
-        proj = project_name_from_log_path(f)
+        proj = project_name_from_log_path(f, log_dir)
         try:
             fh = open(f, encoding="utf-8")
         except OSError:

@@ -98,13 +98,47 @@ def test_aggregate_sums_and_costs(tmp_path: Path) -> None:
 
 
 def test_project_name_decoding() -> None:
+    log_dir = Path("/x/.claude/projects")
     assert project_name_from_log_path(
-        "/x/.claude/projects/-home-neolix-code-foo/sess.jsonl"
+        "/x/.claude/projects/-home-neolix-code-foo/sess.jsonl", log_dir
+    ) == "/home/neolix/code/foo"
+    # Subagent files (one level deeper) yield the same project name
+    assert project_name_from_log_path(
+        "/x/.claude/projects/-home-neolix-code-foo/sess-uuid/subagents/agent-abc.jsonl",
+        log_dir,
     ) == "/home/neolix/code/foo"
     # Non-dash-prefixed paths pass through verbatim
     assert project_name_from_log_path(
-        "/x/.claude/projects/local-thing/sess.jsonl"
+        "/x/.claude/projects/local-thing/sess.jsonl", log_dir
     ) == "local-thing"
+
+
+def test_collect_picks_up_subagent_files(tmp_path: Path) -> None:
+    """Subagent calls live at <project>/<session>/subagents/agent-*.jsonl."""
+    project_dir = tmp_path / "-home-user-code-foo"
+    project_dir.mkdir()
+
+    # Top-level session file
+    _write_session(
+        project_dir,
+        "session_top",
+        [_assistant("msg_main", "2026-04-30T01:00:00Z", "claude-opus-4-7", input=100)],
+    )
+
+    # Subagent file two levels deeper
+    sub_dir = project_dir / "session_uuid" / "subagents"
+    sub_dir.mkdir(parents=True)
+    _write_session(
+        sub_dir,
+        "agent-deadbeef",
+        [_assistant("msg_sub", "2026-04-30T01:05:00Z", "claude-haiku-4-5", input=200)],
+    )
+
+    rows = collect(tmp_path, date(2026, 4, 1), date(2026, 4, 30), TZ)
+    by_model = {r.model: r for r in rows}
+    assert set(by_model) == {"claude-opus-4-7", "claude-haiku-4-5"}
+    # Subagent's project name decodes from the project root, not the "subagents" dir
+    assert by_model["claude-haiku-4-5"].project == "/home/user/code/foo"
 
 
 def test_pricing_user_rules_take_precedence(tmp_path: Path) -> None:
