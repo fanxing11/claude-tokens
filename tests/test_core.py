@@ -4,8 +4,8 @@ import json
 from datetime import date, timedelta, timezone
 from pathlib import Path
 
-from ccstats.core import aggregate, collect, project_name_from_log_path
-from ccstats.pricing import DEFAULT_RULES, Price, PriceRule, price_for
+from claude_tokens.core import aggregate, collect, project_name_from_log_path
+from claude_tokens.pricing import DEFAULT_RULES, Price, PriceRule, price_for
 
 
 TZ = timezone(timedelta(hours=8))
@@ -112,7 +112,7 @@ def test_pricing_user_rules_take_precedence(tmp_path: Path) -> None:
     config.write_text(
         '[[models]]\nmatch = "opus"\ninput = 1.0\noutput = 1.0\ncache_create = 1.0\ncache_read = 1.0\n'
     )
-    from ccstats.pricing import load_rules
+    from claude_tokens.pricing import load_rules
 
     rules = load_rules(config)
     p = price_for("claude-opus-4-7", rules)

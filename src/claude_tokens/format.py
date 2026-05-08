@@ -7,7 +7,7 @@ from dataclasses import asdict
 from datetime import date
 from typing import Iterable
 
-from ccstats.core import Bucket
+from claude_tokens.core import Bucket
 
 
 def fmt_tokens(n: int) -> str:
@@ -106,7 +106,7 @@ def render_table(
     lines.append("")
     lines.append("* costs cover models with public Anthropic pricing (opus/sonnet/haiku);")
     lines.append("  '*' next to a total means rows used unknown-priced models (excluded).")
-    lines.append("  Override or extend pricing via ~/.config/ccstats/pricing.toml.")
+    lines.append("  Override or extend pricing via ~/.config/claude-tokens/pricing.toml.")
     return "\n".join(lines)
 
 

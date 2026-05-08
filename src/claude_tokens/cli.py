@@ -1,4 +1,4 @@
-"""Command-line entry point for ccstats."""
+"""Command-line entry point for claude-tokens."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from ccstats import __version__
-from ccstats.core import DEFAULT_LOG_DIR, GROUP_KEYS, aggregate, collect
-from ccstats.format import render_json, render_table
-from ccstats.pricing import default_config_path, load_rules
+from claude_tokens import __version__
+from claude_tokens.core import DEFAULT_LOG_DIR, GROUP_KEYS, aggregate, collect
+from claude_tokens.format import render_json, render_table
+from claude_tokens.pricing import default_config_path, load_rules
 
 
-ENV_LOG_DIR = "CCSTATS_LOG_DIR"
-ENV_TZ = "CCSTATS_TZ"
-ENV_PRICING = "CCSTATS_PRICING"
+ENV_LOG_DIR = "CLAUDE_TOKENS_LOG_DIR"
+ENV_TZ = "CLAUDE_TOKENS_TZ"
+ENV_PRICING = "CLAUDE_TOKENS_PRICING"
 
 
 def parse_tz(name: str) -> tuple[timezone, str]:
@@ -47,23 +47,23 @@ def parse_iso_date(s: str) -> date:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="ccstats",
+        prog="claude-tokens",
         description="Token usage and cost analyzer for Claude Code session logs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  ccstats                              # last 7 days, by day\n"
-            "  ccstats --days 30                    # last 30 days\n"
-            "  ccstats --from 2026-04-01 --to 2026-04-15\n"
-            "  ccstats --group model                # by model\n"
-            "  ccstats --group day,model            # nested\n"
-            "  ccstats --json                       # JSON output\n"
-            "  ccstats --watch 5                    # live refresh every 5s\n"
+            "  claude-tokens                              # last 7 days, by day\n"
+            "  claude-tokens --days 30                    # last 30 days\n"
+            "  claude-tokens --from 2026-04-01 --to 2026-04-15\n"
+            "  claude-tokens --group model                # by model\n"
+            "  claude-tokens --group day,model            # nested\n"
+            "  claude-tokens --json                       # JSON output\n"
+            "  claude-tokens --watch 5                    # live refresh every 5s\n"
             "\nEnv overrides: "
             f"{ENV_LOG_DIR}, {ENV_TZ}, {ENV_PRICING}"
         ),
     )
-    p.add_argument("--version", action="version", version=f"ccstats {__version__}")
+    p.add_argument("--version", action="version", version=f"claude-tokens {__version__}")
     p.add_argument("--days", type=int, default=7, help="last N days (default 7, ignored if --from set)")
     p.add_argument("--from", dest="date_from", type=parse_iso_date, help="start date YYYY-MM-DD (inclusive)")
     p.add_argument("--to", dest="date_to", type=parse_iso_date, help="end date YYYY-MM-DD (inclusive)")
@@ -86,8 +86,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--pricing-file",
         type=Path,
-        default=Path(os.environ["CCSTATS_PRICING"]) if os.environ.get(ENV_PRICING) else None,
-        help="TOML file overriding/extending pricing (default ~/.config/ccstats/pricing.toml)",
+        default=Path(os.environ[ENV_PRICING]) if os.environ.get(ENV_PRICING) else None,
+        help="TOML file overriding/extending pricing (default ~/.config/claude-tokens/pricing.toml)",
     )
     p.add_argument("--json", action="store_true", help="emit JSON instead of a table")
     p.add_argument(
