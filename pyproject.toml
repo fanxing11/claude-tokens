@@ -36,9 +36,9 @@ dev = ["pytest>=7"]
 ccstats = "ccstats.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/mengfanxing/ccstats"
-Repository = "https://github.com/mengfanxing/ccstats"
-Issues = "https://github.com/mengfanxing/ccstats/issues"
+Homepage = "https://github.com/fanxing11/ccstats"
+Repository = "https://github.com/fanxing11/ccstats"
+Issues = "https://github.com/fanxing11/ccstats/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ccstats"]
