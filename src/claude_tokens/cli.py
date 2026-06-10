@@ -10,14 +10,23 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from claude_tokens import __version__
-from claude_tokens.core import DEFAULT_LOG_DIR, GROUP_KEYS, aggregate, collect
+from claude_tokens.core import (
+    DEFAULT_LOG_DIR,
+    GROUP_KEYS,
+    ClaudeCodeSource,
+    Source,
+    aggregate,
+    collect,
+)
 from claude_tokens.format import render_json, render_table
+from claude_tokens.openclaw import DEFAULT_OPENCLAW_DIR, OpenClawSource
 from claude_tokens.pricing import default_config_path, load_rules
 
 
 ENV_LOG_DIR = "CLAUDE_TOKENS_LOG_DIR"
 ENV_TZ = "CLAUDE_TOKENS_TZ"
 ENV_PRICING = "CLAUDE_TOKENS_PRICING"
+ENV_OPENCLAW_DIR = "CLAUDE_TOKENS_OPENCLAW_DIR"
 
 
 def parse_tz(name: str) -> tuple[timezone, str]:
@@ -48,7 +57,7 @@ def parse_iso_date(s: str) -> date:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="claude-tokens",
-        description="Token usage and cost analyzer for Claude Code session logs.",
+        description="Token usage and cost analyzer for Claude Code and OpenClaw session logs.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
@@ -60,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  claude-tokens --json                       # JSON output\n"
             "  claude-tokens --watch 5                    # live refresh every 5s\n"
             "\nEnv overrides: "
-            f"{ENV_LOG_DIR}, {ENV_TZ}, {ENV_PRICING}"
+            f"{ENV_LOG_DIR}, {ENV_TZ}, {ENV_PRICING}, {ENV_OPENCLAW_DIR}"
         ),
     )
     p.add_argument("--version", action="version", version=f"claude-tokens {__version__}")
@@ -123,16 +132,27 @@ def parse_group(value: str) -> tuple[str, ...]:
     return keys
 
 
+def build_sources(args) -> list[Source]:
+    sources: list[Source] = [ClaudeCodeSource(args.log_dir)]
+    oc_dir = Path(os.environ.get(ENV_OPENCLAW_DIR, str(DEFAULT_OPENCLAW_DIR)))
+    if oc_dir.is_dir():
+        sources.append(OpenClawSource(oc_dir))
+    return sources
+
+
 def render_once(args, tz: timezone, tz_name: str, group_keys: tuple[str, ...], pricing_path: Path | None) -> str:
     date_from, date_to = resolve_dates(args, tz)
-    if not args.log_dir.is_dir():
-        return f"log directory not found: {args.log_dir}"
+    sources = build_sources(args)
+    present = [s for s in sources if s.exists()]
+    if not present:
+        return "no log sources found (need ~/.claude/projects or ~/.openclaw/agents)"
     rules = load_rules(pricing_path)
-    rows = collect(args.log_dir, date_from, date_to, tz)
+    rows = collect(sources, date_from, date_to, tz)
     buckets = aggregate(rows, group_keys, rules)
+    source_names = [s.name for s in present]
     if args.json:
         return render_json(buckets, group_keys, date_from, date_to, tz_name)
-    return render_table(buckets, group_keys, date_from, date_to, tz_name)
+    return render_table(buckets, group_keys, date_from, date_to, tz_name, source_names)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta, timezone
 from pathlib import Path
 
-from claude_tokens.core import aggregate, collect, project_name_from_log_path
+from claude_tokens.core import ClaudeCodeSource, aggregate, collect, project_name_from_log_path
 from claude_tokens.pricing import DEFAULT_RULES, Price, PriceRule, price_for
 
 
@@ -46,7 +46,7 @@ def test_collect_dedupes_by_message_id(tmp_path: Path) -> None:
     _write_session(project_dir, "s1", [e1, e2])
     _write_session(project_dir, "s2", [e3])
 
-    rows = collect(tmp_path, date(2026, 4, 1), date(2026, 4, 30), TZ)
+    rows = collect([ClaudeCodeSource(tmp_path)], date(2026, 4, 1), date(2026, 4, 30), TZ)
     assert sorted(r.model for r in rows) == ["claude-opus-4-7", "claude-sonnet-4-6"]
     assert len(rows) == 2
 
@@ -58,7 +58,7 @@ def test_collect_filters_by_date_range(tmp_path: Path) -> None:
     late = _assistant("m2", "2026-04-30T00:00:00Z", "claude-opus-4-7", input=1)
     _write_session(pdir, "s", [early, late])
 
-    rows = collect(tmp_path, date(2026, 4, 15), date(2026, 4, 30), TZ)
+    rows = collect([ClaudeCodeSource(tmp_path)], date(2026, 4, 15), date(2026, 4, 30), TZ)
     assert [r.model for r in rows] == ["claude-opus-4-7"]
     # date_from inclusive, applied after tz shift (UTC 04-01 00:00 -> +8 04-01 08:00)
     assert rows[0].day == "2026-04-30"
@@ -71,7 +71,7 @@ def test_collect_skips_non_assistant_and_missing_usage(tmp_path: Path) -> None:
     no_usage = {"type": "assistant", "timestamp": "2026-04-30T00:00:00Z", "message": {"id": "x"}}
     real = _assistant("m", "2026-04-30T00:00:00Z", "claude-opus-4-7", input=3)
     _write_session(pdir, "s", [user, no_usage, real])
-    rows = collect(tmp_path, date(2026, 4, 1), date(2026, 4, 30), TZ)
+    rows = collect([ClaudeCodeSource(tmp_path)], date(2026, 4, 1), date(2026, 4, 30), TZ)
     assert len(rows) == 1
 
 
@@ -87,7 +87,7 @@ def test_aggregate_sums_and_costs(tmp_path: Path) -> None:
             _assistant("c", "2026-04-30T02:00:00Z", "unknown-model", input=999_999),
         ],
     )
-    rows = collect(tmp_path, date(2026, 4, 1), date(2026, 4, 30), TZ)
+    rows = collect([ClaudeCodeSource(tmp_path)], date(2026, 4, 1), date(2026, 4, 30), TZ)
     buckets = aggregate(rows, ("day",), DEFAULT_RULES)
     key = ("2026-04-30",)
     b = buckets[key]
@@ -134,7 +134,7 @@ def test_collect_picks_up_subagent_files(tmp_path: Path) -> None:
         [_assistant("msg_sub", "2026-04-30T01:05:00Z", "claude-haiku-4-5", input=200)],
     )
 
-    rows = collect(tmp_path, date(2026, 4, 1), date(2026, 4, 30), TZ)
+    rows = collect([ClaudeCodeSource(tmp_path)], date(2026, 4, 1), date(2026, 4, 30), TZ)
     by_model = {r.model: r for r in rows}
     assert set(by_model) == {"claude-opus-4-7", "claude-haiku-4-5"}
     # Subagent's project name decodes from the project root, not the "subagents" dir
@@ -151,3 +151,29 @@ def test_pricing_user_rules_take_precedence(tmp_path: Path) -> None:
     rules = load_rules(config)
     p = price_for("claude-opus-4-7", rules)
     assert p == Price(1.0, 1.0, 1.0, 1.0)
+
+
+def test_usage_row_has_source_field():
+    from claude_tokens.core import UsageRow
+    row = UsageRow(day="2026-05-26", model="claude-opus", project="p",
+                   source="claude-code",
+                   input=1, output=2, cache_create=3, cache_read=4)
+    assert row.source == "claude-code"
+
+
+def test_render_table_header_includes_sources():
+    from datetime import date
+    from claude_tokens.format import render_table
+    out = render_table({}, ("day",), date(2026, 1, 1), date(2026, 1, 2), "UTC",
+                       sources=["claude-code", "openclaw"])
+    assert "sources: claude-code, openclaw" in out
+    assert "AI CLI token usage" in out
+    assert "Claude Code usage" not in out  # NEW: old header retired
+
+
+def test_render_table_header_omits_sources_when_none():
+    from datetime import date
+    from claude_tokens.format import render_table
+    out = render_table({}, ("day",), date(2026, 1, 1), date(2026, 1, 2), "UTC")
+    assert "sources:" not in out
+    assert "AI CLI token usage" in out

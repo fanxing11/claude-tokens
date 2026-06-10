@@ -1,15 +1,17 @@
 # claude-tokens
 
-Token usage and cost analyzer for [Claude Code](https://docs.anthropic.com/claude-code) session logs.
+Token usage and cost analyzer for [Claude Code](https://docs.anthropic.com/claude-code)
+and (optionally) [OpenClaw](https://github.com/openclaw/openclaw) session logs.
 
-`claude-tokens` reads the JSONL session files Claude Code writes under `~/.claude/projects/`
-and produces a per-day / per-model / per-project breakdown of input, output,
-cache-write, and cache-read tokens — with an optional USD cost estimate based on
+`claude-tokens` reads the JSONL session files written under
+`~/.claude/projects/` (and `~/.openclaw/agents/` when present), and produces
+a per-day / per-model / per-project breakdown of input, output, cache-write,
+and cache-read tokens — with an optional USD cost estimate based on
 [Anthropic's public list pricing](https://www.anthropic.com/pricing).
 
 ```
 $ claude-tokens --days 7
-# Claude Code usage  2026-04-23 ~ 2026-04-30  (Asia/Shanghai)  group by: day
+# AI CLI token usage  2026-04-23 ~ 2026-04-30  (Asia/Shanghai)  group by: day  sources: claude-code
 day         msgs   input  output  cache_w  cache_r   total      ≈cost
 ---------------------------------------------------------------------
 2026-04-23  1753  250.6K    1.0M    45.8M   277.8M  324.9M  $1355.56
@@ -59,6 +61,32 @@ claude-tokens --watch 5                    # live refresh every 5 seconds
 claude-tokens --tz UTC                     # change timezone (default Asia/Shanghai)
 claude-tokens --tz +0                      # numeric offsets work too
 ```
+
+## OpenClaw support
+
+If you also use [OpenClaw](https://github.com/openclaw/openclaw),
+`claude-tokens` automatically picks up its session logs at
+`~/.openclaw/agents/` (skipping the `claude-code` and `codex` shell
+agents, which would double-count against the native CLIs). The table
+header lists which sources are active; a new `source` group key lets
+you split them apart:
+
+```sh
+claude-tokens --group source,day
+```
+
+To opt out, point the env var at a non-existent path:
+
+```sh
+CLAUDE_TOKENS_OPENCLAW_DIR=/dev/null claude-tokens
+```
+
+**Note:** OpenClaw only records non-zero token usage when its model
+provider is configured with `"api": "anthropic"` (or
+`"anthropic-messages"`). If you're going through an OpenAI-Completions
+adapter and seeing zeros, that's a known OpenClaw issue — switch the
+provider's `api` field, restart the gateway, and new sessions will
+have real numbers.
 
 ## How it works
 
@@ -131,11 +159,12 @@ Use `--pricing-file PATH` or `CLAUDE_TOKENS_PRICING=PATH` to point at a differen
 
 ## Environment variables
 
-| Variable                  | Purpose                              | Default                                  |
-|---------------------------|--------------------------------------|------------------------------------------|
-| `CLAUDE_TOKENS_LOG_DIR`   | Claude Code projects log directory   | `~/.claude/projects`                     |
-| `CLAUDE_TOKENS_TZ`        | Timezone for day buckets             | `Asia/Shanghai`                          |
-| `CLAUDE_TOKENS_PRICING`   | Pricing override TOML path           | OS-specific (see above)                  |
+| Variable                     | Purpose                              | Default                                  |
+|------------------------------|--------------------------------------|------------------------------------------|
+| `CLAUDE_TOKENS_LOG_DIR`      | Claude Code projects log directory   | `~/.claude/projects`                     |
+| `CLAUDE_TOKENS_OPENCLAW_DIR` | OpenClaw agents log directory        | `~/.openclaw/agents`                     |
+| `CLAUDE_TOKENS_TZ`           | Timezone for day buckets             | `Asia/Shanghai`                          |
+| `CLAUDE_TOKENS_PRICING`      | Pricing override TOML path           | OS-specific (see above)                  |
 
 ## Caveats
 

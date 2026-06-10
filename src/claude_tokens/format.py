@@ -33,10 +33,13 @@ def render_table(
     date_from: date,
     date_to: date,
     tz_name: str,
+    sources: list[str] | None = None,
 ) -> str:
     lines: list[str] = []
+    src_suffix = f"  sources: {', '.join(sources)}" if sources else ""
     lines.append(
-        f"# Claude Code usage  {date_from} ~ {date_to}  ({tz_name})  group by: {', '.join(group_keys)}"
+        f"# AI CLI token usage  {date_from} ~ {date_to}  ({tz_name})"
+        f"  group by: {', '.join(group_keys)}{src_suffix}"
     )
     if not buckets:
         lines.append("(no data in range)")

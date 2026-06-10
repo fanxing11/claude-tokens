@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "claude-tokens"
-version = "0.1.1"
-description = "Token usage and cost analyzer for Claude Code session logs"
+version = "0.2.0"
+description = "Token usage and cost analyzer for Claude Code and OpenClaw session logs"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

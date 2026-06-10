@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import ClassVar, Iterable, Iterator, Protocol
 
 from claude_tokens.pricing import Price, PriceRule, cost_usd, price_for
 
@@ -22,6 +21,7 @@ class UsageRow:
     day: str       # YYYY-MM-DD in caller-supplied tz
     model: str
     project: str
+    source: str    # "claude-code" or "openclaw"
     input: int
     output: int
     cache_create: int
@@ -83,48 +83,89 @@ def project_name_from_log_path(path: str, log_dir: Path) -> str:
     return encoded
 
 
-def iter_log_files(log_dir: Path, file_cutoff: datetime) -> Iterator[str]:
-    """Yield jsonl files anywhere under ``log_dir`` with mtime >= cutoff.
+class Source(Protocol):
+    """A reader for one kind of session log directory.
 
-    Recurses to pick up subagent logs at
-    ``<log_dir>/<project>/<session-id>/subagents/agent-*.jsonl`` in addition to
-    top-level ``<log_dir>/<project>/<session-id>.jsonl`` files.
+    Implementations are not required to subclass Source — duck-typing
+    suffices. Listed here as a single place to see the contract that
+    collect() depends on.
     """
-    for path in log_dir.rglob("*.jsonl"):
-        try:
-            mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
-        except OSError:
-            continue
-        if mtime >= file_cutoff:
-            yield str(path)
+
+    name: ClassVar[str]   # "claude-code" / "openclaw" — matches UsageRow.source
+
+    def exists(self) -> bool:
+        """True if this source's underlying directory is present."""
+
+    def scan(
+        self,
+        seen: set[str],
+        date_from: date,
+        date_to: date,
+        tz: timezone,
+    ) -> Iterator[UsageRow]:
+        """Yield UsageRows in the requested window, adding their
+        dedup keys to ``seen`` as it goes."""
+
+
+class ClaudeCodeSource:
+    """Scan ~/.claude/projects/ for Claude Code session jsonl files."""
+
+    name: ClassVar[str] = "claude-code"
+
+    def __init__(self, log_dir: Path) -> None:
+        self.log_dir = log_dir
+
+    def exists(self) -> bool:
+        return self.log_dir.is_dir()
+
+    def scan(
+        self,
+        seen: set[str],
+        date_from: date,
+        date_to: date,
+        tz: timezone,
+    ) -> Iterator[UsageRow]:
+        file_cutoff = datetime.combine(date_from, datetime.min.time(), tzinfo=tz) - timedelta(days=2)
+        for path in self.log_dir.rglob("*.jsonl"):
+            try:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+            except OSError:
+                continue
+            if mtime < file_cutoff:
+                continue
+            proj = project_name_from_log_path(str(path), self.log_dir)
+            try:
+                fh = open(path, encoding="utf-8")
+            except OSError:
+                continue
+            with fh:
+                for line in fh:
+                    row = _parse_claude_code_line(line, proj, date_from, date_to, tz, seen)
+                    if row is not None:
+                        yield row
 
 
 def collect(
-    log_dir: Path,
+    sources: Iterable[Source],
     date_from: date,
     date_to: date,
     tz: timezone,
 ) -> list[UsageRow]:
-    """Scan logs and return one UsageRow per unique Anthropic message id in range."""
-    file_cutoff = datetime.combine(date_from, datetime.min.time(), tzinfo=tz) - timedelta(days=2)
+    """Scan all sources and return one UsageRow per unique message id in range.
+
+    A single ``seen: set[str]`` is threaded through every source so that
+    Anthropic-style message IDs (``msg_*`` / ``msg_vrtx_*``), which are
+    globally unique, are deduped exactly once even when the same response
+    appears in multiple sources' logs.
+    """
     seen: set[str] = set()
     rows: list[UsageRow] = []
-
-    for f in iter_log_files(log_dir, file_cutoff):
-        proj = project_name_from_log_path(f, log_dir)
-        try:
-            fh = open(f, encoding="utf-8")
-        except OSError:
-            continue
-        with fh:
-            for line in fh:
-                row = _parse_line(line, proj, date_from, date_to, tz, seen)
-                if row is not None:
-                    rows.append(row)
+    for src in sources:
+        rows.extend(src.scan(seen, date_from, date_to, tz))
     return rows
 
 
-def _parse_line(
+def _parse_claude_code_line(
     line: str,
     project: str,
     date_from: date,
@@ -160,6 +201,7 @@ def _parse_line(
         day=day.isoformat(),
         model=msg.get("model") or "?",
         project=project,
+        source="claude-code",
         input=int(usage.get("input_tokens") or 0),
         output=int(usage.get("output_tokens") or 0),
         cache_create=int(usage.get("cache_creation_input_tokens") or 0),
@@ -167,7 +209,7 @@ def _parse_line(
     )
 
 
-GROUP_KEYS = ("day", "model", "project")
+GROUP_KEYS = ("day", "model", "project", "source")
 
 
 def aggregate(
