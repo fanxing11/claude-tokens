@@ -111,6 +111,16 @@ def test_project_name_decoding() -> None:
     assert project_name_from_log_path(
         "/x/.claude/projects/local-thing/sess.jsonl", log_dir
     ) == "local-thing"
+    # Hidden directories: Claude Code encodes both '/' and '.' as '-', so a
+    # leading-dot dir like '.openclaw' shows up as '--'. Decode it as '/.'
+    # rather than emitting a stray '//'.
+    assert project_name_from_log_path(
+        "/x/.claude/projects/-home-neolix--openclaw-workspace/sess.jsonl", log_dir
+    ) == "/home/neolix/.openclaw/workspace"
+    assert project_name_from_log_path(
+        "/x/.claude/projects/-home-neolix--openclaw-workspace-intel/sess.jsonl",
+        log_dir,
+    ) == "/home/neolix/.openclaw/workspace/intel"
 
 
 def test_collect_picks_up_subagent_files(tmp_path: Path) -> None:

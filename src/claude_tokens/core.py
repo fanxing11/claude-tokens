@@ -66,10 +66,14 @@ def project_name_from_log_path(path: str, log_dir: Path) -> str:
     yield the same project name — we always take the first path segment under
     ``log_dir``.
 
-    Claude Code encodes the project cwd by replacing ``/`` with ``-``. This
-    decoder is best-effort: a path segment that legitimately contained ``-``
-    can't be perfectly reversed, but the result is still a stable, human-readable
-    identifier good enough for grouping.
+    Claude Code encodes the project cwd by replacing both ``/`` and ``.`` with
+    ``-``. A hidden directory like ``/.openclaw`` therefore encodes to ``--``
+    (the slash and the dot collapse into two dashes), so we decode ``--`` back
+    to ``/.`` before turning the remaining single dashes into slashes —
+    otherwise the dot is lost and a stray ``//`` appears. This decoder is
+    best-effort: a segment that legitimately contained ``-`` can't be perfectly
+    reversed, but the result is still a stable, human-readable identifier good
+    enough for grouping.
     """
     try:
         rel = Path(path).relative_to(log_dir)
@@ -79,7 +83,8 @@ def project_name_from_log_path(path: str, log_dir: Path) -> str:
     encoded = rel.parts[0] if rel.parts else ""
     if encoded.startswith("-"):
         # Leading dash represents the leading slash of an absolute path.
-        return "/" + encoded[1:].replace("-", "/")
+        # "--" marks a hidden dir ("/."); decode it first so the dot survives.
+        return "/" + encoded[1:].replace("--", "/.").replace("-", "/")
     return encoded
 
 
